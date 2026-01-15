@@ -6,6 +6,9 @@
 import { NextResponse } from 'next/server'
 import { getStoriesMetadata, getStoryById } from '@/lib/getStories'
 
+// Mark this route as dynamic since it uses request.url
+export const dynamic = 'force-dynamic'
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const id = searchParams.get('id')
