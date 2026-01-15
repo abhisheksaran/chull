@@ -5,14 +5,21 @@ import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 import { getEmotionColors } from '@/lib/emotionColors'
 import { useAmbientAudioControls } from '@/lib/AmbientAudioContext'
+import { ROOMS, type Room } from '@/lib/rooms'
 
 interface StoryMetadata {
   id: string
   title: string
   subtitle?: string
+  room?: string
   emotion: string
   excerpt: string
   excerptHindi?: string
+}
+
+interface RoomWithStories {
+  room: Room
+  stories: StoryMetadata[]
 }
 
 export default function Home() {
@@ -27,6 +34,7 @@ export default function Home() {
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 })
   const [currentEmotion, setCurrentEmotion] = useState(0)
   const [stories, setStories] = useState<StoryMetadata[]>([])
+  const [roomsWithStories, setRoomsWithStories] = useState<RoomWithStories[]>([])
 
   // Intersection Observer for crisp appearance
   const [scene1Visible, setScene1Visible] = useState(true)
@@ -52,6 +60,30 @@ export default function Home() {
       .then((data) => {
         if (Array.isArray(data)) {
           setStories(data)
+          
+          // Group stories by room
+          const roomsMap = new Map<string, StoryMetadata[]>()
+          
+          data.forEach((story: StoryMetadata) => {
+            const roomId = story.room || 'uncategorized'
+            if (!roomsMap.has(roomId)) {
+              roomsMap.set(roomId, [])
+            }
+            roomsMap.get(roomId)!.push(story)
+          })
+          
+          // Convert to array and sort by room order
+          const roomsList: RoomWithStories[] = []
+          Object.values(ROOMS)
+            .sort((a, b) => a.order - b.order)
+            .forEach((room) => {
+              const roomStories = roomsMap.get(room.id) || []
+              if (roomStories.length > 0) {
+                roomsList.push({ room, stories: roomStories })
+              }
+            })
+          
+          setRoomsWithStories(roomsList)
         }
       })
       .catch((error) => {
@@ -309,7 +341,7 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Stories Section - More Visual */}
+      {/* Gallery Rooms Section */}
       <section className="relative min-h-screen py-32 px-6 z-10 snap-start">
         <div className="max-w-7xl mx-auto">
           <motion.div
@@ -335,8 +367,15 @@ export default function Home() {
             />
           </motion.div>
 
-          {/* Masonry layout - 3 columns, fills from bottom like water */}
-          <MasonryGrid stories={stories} />
+          {/* Render each room */}
+          {roomsWithStories.map((roomData, roomIndex) => (
+            <RoomSection 
+              key={roomData.room.id} 
+              roomData={roomData} 
+              roomIndex={roomIndex}
+              allStories={stories}
+            />
+          ))}
 
           {/* Coming soon placeholder */}
           {stories.length === 0 && (
@@ -380,147 +419,365 @@ export default function Home() {
   )
 }
 
-function MasonryGrid({ stories }: { stories: StoryMetadata[] }) {
-  const [columns, setColumns] = useState<StoryMetadata[][]>([[], [], []])
+function RoomSection({ 
+  roomData, 
+  roomIndex,
+  allStories 
+}: { 
+  roomData: RoomWithStories
+  roomIndex: number
+  allStories: StoryMetadata[]
+}) {
+  const { room, stories } = roomData
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const [activeIndex, setActiveIndex] = useState(0)
+  const [canScrollLeft, setCanScrollLeft] = useState(false)
+  const [canScrollRight, setCanScrollRight] = useState(true)
+
+  // Update scroll indicators
+  const updateScrollState = () => {
+    if (scrollContainerRef.current) {
+      const { scrollLeft, scrollWidth, clientWidth } = scrollContainerRef.current
+      setCanScrollLeft(scrollLeft > 10)
+      setCanScrollRight(scrollLeft < scrollWidth - clientWidth - 10)
+      
+      // Calculate active index based on scroll position
+      const cardWidth = 400 + 32 // card width + gap
+      const newIndex = Math.round(scrollLeft / cardWidth)
+      setActiveIndex(Math.min(newIndex, stories.length - 1))
+    }
+  }
 
   useEffect(() => {
-    // Distribute stories to columns based on index (round-robin for 3 columns)
-    const cols: StoryMetadata[][] = [[], [], []]
-    stories.forEach((story, index) => {
-      cols[index % 3].push(story)
-    })
-    setColumns(cols)
-  }, [stories])
+    const container = scrollContainerRef.current
+    if (container) {
+      container.addEventListener('scroll', updateScrollState)
+      updateScrollState()
+      return () => container.removeEventListener('scroll', updateScrollState)
+    }
+  }, [stories.length])
 
+  const scrollTo = (direction: 'left' | 'right') => {
+    if (scrollContainerRef.current) {
+      const cardWidth = 400 + 32
+      const scrollAmount = direction === 'left' ? -cardWidth : cardWidth
+      scrollContainerRef.current.scrollBy({ left: scrollAmount, behavior: 'smooth' })
+    }
+  }
+
+  const scrollToIndex = (index: number) => {
+    if (scrollContainerRef.current) {
+      const cardWidth = 400 + 32
+      scrollContainerRef.current.scrollTo({ left: index * cardWidth, behavior: 'smooth' })
+    }
+  }
+  
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8">
-      {columns.map((columnStories, colIndex) => (
-        <div key={colIndex} className="flex flex-col gap-6 lg:gap-8">
-          {columnStories.map((story) => {
-            const globalIndex = stories.findIndex(s => s.id === story.id)
+    <motion.div
+      initial={{ opacity: 0 }}
+      whileInView={{ opacity: 1 }}
+      viewport={{ once: true, margin: '-100px' }}
+      transition={{ duration: 0.8, delay: roomIndex * 0.1 }}
+      className="mb-40"
+    >
+      {/* Room Header */}
+      <motion.div 
+        className="mb-12 text-center"
+        initial={{ opacity: 0, y: 30 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true }}
+        transition={{ duration: 0.6 }}
+      >
+        {/* Room number indicator */}
+        <motion.span
+          className="inline-block text-xs tracking-[0.3em] text-gray-600 mb-4 uppercase"
+          style={{ fontFamily: 'var(--font-geist-mono, monospace)' }}
+        >
+          Room {roomIndex + 1}
+        </motion.span>
+        
+        {/* Hindi name - larger */}
+        <h3 
+          className="hindi-text text-3xl md:text-4xl lg:text-5xl font-medium mb-2"
+          style={{ color: '#E8E6E3' }}
+        >
+          {room.nameHindi}
+        </h3>
+        
+        {/* English name - smaller, muted */}
+        <p 
+          className="font-primary text-lg md:text-xl tracking-wide"
+          style={{ color: '#E8E6E3', opacity: 0.5 }}
+        >
+          {room.nameEnglish}
+        </p>
+        
+        {/* Description */}
+        {room.description && (
+          <p 
+            className="font-primary text-sm mt-4 max-w-md mx-auto italic"
+            style={{ color: '#E8E6E3', opacity: 0.35 }}
+          >
+            {room.description}
+          </p>
+        )}
+      </motion.div>
+
+      {/* Horizontal Scroll Gallery */}
+      <div className="relative group">
+        {/* Left Arrow */}
+        <motion.button
+          onClick={() => scrollTo('left')}
+          className="absolute left-4 top-1/2 -translate-y-1/2 z-20 w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300"
+          style={{
+            background: 'rgba(20, 20, 25, 0.8)',
+            backdropFilter: 'blur(8px)',
+            border: '1px solid rgba(255,255,255,0.1)',
+          }}
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ 
+            opacity: canScrollLeft ? 1 : 0,
+            x: canScrollLeft ? 0 : -20,
+            pointerEvents: canScrollLeft ? 'auto' : 'none',
+          }}
+          whileHover={{ scale: 1.1, background: 'rgba(40, 40, 50, 0.9)' }}
+          whileTap={{ scale: 0.95 }}
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="2">
+            <path d="M15 18l-6-6 6-6" />
+          </svg>
+        </motion.button>
+
+        {/* Right Arrow */}
+        <motion.button
+          onClick={() => scrollTo('right')}
+          className="absolute right-4 top-1/2 -translate-y-1/2 z-20 w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300"
+          style={{
+            background: 'rgba(20, 20, 25, 0.8)',
+            backdropFilter: 'blur(8px)',
+            border: '1px solid rgba(255,255,255,0.1)',
+          }}
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ 
+            opacity: canScrollRight ? 1 : 0,
+            x: canScrollRight ? 0 : 20,
+            pointerEvents: canScrollRight ? 'auto' : 'none',
+          }}
+          whileHover={{ scale: 1.1, background: 'rgba(40, 40, 50, 0.9)' }}
+          whileTap={{ scale: 0.95 }}
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="2">
+            <path d="M9 18l6-6-6-6" />
+          </svg>
+        </motion.button>
+
+        {/* Fade edges */}
+        <div 
+          className="absolute left-0 top-0 bottom-0 w-24 z-10 pointer-events-none"
+          style={{
+            background: 'linear-gradient(to right, rgba(14, 15, 19, 1), transparent)',
+          }}
+        />
+        <div 
+          className="absolute right-0 top-0 bottom-0 w-24 z-10 pointer-events-none"
+          style={{
+            background: 'linear-gradient(to left, rgba(14, 15, 19, 1), transparent)',
+          }}
+        />
+
+        {/* Scrollable Container */}
+        <div
+          ref={scrollContainerRef}
+          className="flex gap-8 overflow-x-auto scrollbar-hide px-12 md:px-24 py-4"
+          style={{
+            scrollSnapType: 'x mandatory',
+            scrollPaddingLeft: '3rem',
+            scrollPaddingRight: '3rem',
+          }}
+        >
+          {stories.map((story, index) => {
+            const globalIndex = allStories.findIndex(s => s.id === story.id)
             return (
               <StoryCard 
                 key={story.id} 
                 story={story} 
-                index={globalIndex} 
+                index={globalIndex >= 0 ? globalIndex : index} 
+                localIndex={index}
+                isActive={index === activeIndex}
               />
             )
           })}
         </div>
-      ))}
-    </div>
+
+        {/* Pagination Dots */}
+        <div className="flex justify-center gap-2 mt-8">
+          {stories.map((_, index) => (
+            <button
+              key={index}
+              onClick={() => scrollToIndex(index)}
+              className="w-2 h-2 rounded-full transition-all duration-300 focus:outline-none"
+              style={{
+                background: index === activeIndex 
+                  ? 'rgba(255, 255, 255, 0.8)' 
+                  : 'rgba(255, 255, 255, 0.2)',
+                transform: index === activeIndex ? 'scale(1.3)' : 'scale(1)',
+              }}
+              aria-label={`Go to story ${index + 1}`}
+            />
+          ))}
+        </div>
+      </div>
+    </motion.div>
   )
 }
 
 function StoryCard({
   story,
   index,
+  localIndex,
+  isActive = false,
 }: {
   story: StoryMetadata
   index: number
+  localIndex: number
+  isActive?: boolean
 }) {
   const colors = getEmotionColors(story.emotion)
   const [isHovered, setIsHovered] = useState(false)
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 80, rotateX: -15 }}
-      whileInView={{ opacity: 1, y: 0, rotateX: 0 }}
+      initial={{ opacity: 0, scale: 0.9 }}
+      whileInView={{ opacity: 1, scale: 1 }}
       viewport={{ once: true, margin: '-50px' }}
       transition={{
-        duration: 0.8,
-        delay: index * 0.15,
+        duration: 0.6,
+        delay: localIndex * 0.1,
         type: 'spring',
         stiffness: 100,
       }}
       onHoverStart={() => setIsHovered(true)}
       onHoverEnd={() => setIsHovered(false)}
-      className="perspective-1000"
+      className="flex-shrink-0 perspective-1000"
+      style={{
+        scrollSnapAlign: 'center',
+        width: '400px',
+        maxWidth: '85vw',
+      }}
     >
       <Link
         href={`/stories/${story.id}`}
         aria-label={`Read story: ${story.title}`}
-        className="block focus:outline-none focus:ring-2 focus:ring-offset-4 focus:ring-offset-dark-studio rounded-lg"
+        className="block focus:outline-none focus:ring-2 focus:ring-offset-4 focus:ring-offset-dark-studio rounded-xl"
         style={{
           '--tw-ring-color': colors.text,
         } as React.CSSProperties & { '--tw-ring-color': string }}
       >
         <motion.div
           animate={{
-            rotateY: isHovered ? 2 : 0,
-            rotateX: isHovered ? -2 : 0,
-            scale: isHovered ? 1.03 : 1,
+            rotateY: isHovered ? 3 : 0,
+            rotateX: isHovered ? -3 : 0,
+            scale: isHovered ? 1.02 : isActive ? 1 : 0.98,
+            opacity: isActive || isHovered ? 1 : 0.7,
           }}
-          transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-          className="relative min-h-[400px] rounded-lg overflow-hidden border cursor-pointer group flex flex-col"
+          transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+          className="relative h-[500px] rounded-xl overflow-hidden border cursor-pointer group flex flex-col"
           style={{
-            background: `linear-gradient(135deg, ${colors.base} 0%, ${colors.accent} 50%, ${colors.base} 100%)`,
-            borderColor: `${colors.glow}40`,
+            background: `linear-gradient(145deg, ${colors.base} 0%, ${colors.accent} 60%, ${colors.base} 100%)`,
+            borderColor: isActive || isHovered ? `${colors.glow}60` : `${colors.glow}30`,
             boxShadow: isHovered
-              ? `0 20px 60px ${colors.glow}30, 0 0 40px ${colors.glow}20`
-              : `0 10px 30px ${colors.glow}10`,
+              ? `0 25px 80px ${colors.glow}40, 0 0 60px ${colors.glow}25`
+              : isActive 
+                ? `0 15px 50px ${colors.glow}25, 0 0 30px ${colors.glow}15`
+                : `0 8px 30px ${colors.glow}10`,
           }}
         >
           {/* Animated gradient overlay */}
           <motion.div
             className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700"
             style={{
-              background: `linear-gradient(135deg, ${colors.glow}20 0%, transparent 50%, ${colors.glow}10 100%)`,
+              background: `linear-gradient(145deg, ${colors.glow}25 0%, transparent 40%, ${colors.glow}15 100%)`,
             }}
-            animate={{
-              backgroundPosition: isHovered ? ['0% 0%', '100% 100%'] : '0% 0%',
-            }}
-            transition={{ duration: 3, repeat: Infinity, repeatType: 'reverse' }}
           />
 
           {/* Content */}
-          <div className="relative flex-1 flex flex-col justify-between p-8 md:p-10 z-10">
-            <div className="flex-1 flex flex-col justify-start">
+          <div className="relative flex-1 flex flex-col justify-center p-10 md:p-12 z-10">
+            <div className="flex-1 flex flex-col justify-center">
               <motion.h2
-                className="display-text text-fluid-lg md:text-fluid-xl lg:text-fluid-2xl font-bold mb-2 md:mb-3 leading-tight break-words"
+                className="display-text text-2xl md:text-3xl font-bold mb-4 leading-snug"
                 style={{ color: colors.text }}
                 animate={{
                   textShadow: isHovered
-                    ? `0 0 30px ${colors.text}60, 0 0 60px ${colors.text}30`
-                    : `0 0 10px ${colors.text}30`,
+                    ? `0 0 40px ${colors.text}70, 0 0 80px ${colors.text}40`
+                    : `0 0 20px ${colors.text}40`,
                 }}
               >
                 {story.title}
               </motion.h2>
               {story.subtitle && (
                 <motion.p
-                  className="display-text text-fluid-sm md:text-fluid-base font-light mb-4 md:mb-6 break-words italic"
-                  style={{ color: `${colors.text}AA` }}
+                  className="display-text text-sm md:text-base font-light italic leading-relaxed"
+                  style={{ color: `${colors.text}99` }}
                 >
                   {story.subtitle}
                 </motion.p>
               )}
             </div>
 
-            {/* Decorative corner element */}
-            <motion.div
-              className="absolute top-0 right-0 w-32 h-32"
-              style={{
-                background: `radial-gradient(circle at top right, ${colors.glow}20, transparent 70%)`,
-              }}
-              animate={{
-                scale: isHovered ? [1, 1.5, 1] : 1,
-                opacity: isHovered ? [0.5, 0.8, 0.5] : 0.3,
-              }}
-              transition={{ duration: 2, repeat: Infinity }}
-            />
+            {/* Read indicator */}
+            <motion.div 
+              className="mt-8 flex items-center gap-2"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: isHovered ? 1 : 0.5 }}
+              transition={{ duration: 0.3 }}
+            >
+              <span 
+                className="text-xs tracking-[0.2em] uppercase"
+                style={{ color: `${colors.text}80` }}
+              >
+                Read
+              </span>
+              <motion.div
+                animate={{ x: isHovered ? 5 : 0 }}
+                transition={{ duration: 0.3 }}
+              >
+                <svg 
+                  width="16" 
+                  height="16" 
+                  viewBox="0 0 24 24" 
+                  fill="none" 
+                  stroke={`${colors.text}80`}
+                  strokeWidth="2"
+                >
+                  <path d="M5 12h14M12 5l7 7-7 7" />
+                </svg>
+              </motion.div>
+            </motion.div>
           </div>
+
+          {/* Decorative corner glow */}
+          <motion.div
+            className="absolute top-0 right-0 w-40 h-40"
+            style={{
+              background: `radial-gradient(circle at top right, ${colors.glow}30, transparent 70%)`,
+            }}
+            animate={{
+              scale: isHovered ? [1, 1.3, 1] : 1,
+              opacity: isHovered ? [0.6, 1, 0.6] : 0.4,
+            }}
+            transition={{ duration: 2.5, repeat: Infinity }}
+          />
 
           {/* Bottom accent line */}
           <motion.div
-            className="absolute bottom-0 left-0 right-0 h-px"
+            className="absolute bottom-0 left-0 right-0 h-1"
             style={{
-              background: `linear-gradient(to right, transparent, ${colors.text}60, transparent)`,
+              background: `linear-gradient(to right, transparent, ${colors.text}50, transparent)`,
             }}
             initial={{ scaleX: 0 }}
             whileInView={{ scaleX: 1 }}
             viewport={{ once: true }}
-            transition={{ duration: 1, delay: index * 0.1 + 0.5 }}
+            transition={{ duration: 1.2, delay: 0.3 }}
           />
         </motion.div>
       </Link>

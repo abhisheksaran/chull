@@ -1,5 +1,6 @@
 == A standalone simple filter coffee shop, as if hiding from big nicely coloured cafes and from their warm lights  ==
 == June 17th, 2025 Filter Kaapi==
+== room: rain ==
 
 
 

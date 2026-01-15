@@ -21,6 +21,7 @@ export interface StoryMetadata {
   id: string
   title: string
   subtitle?: string
+  room?: string
   emotion: string
   excerpt: string
   excerptHindi?: string
@@ -30,6 +31,7 @@ export interface Story {
   id: string
   title: string
   subtitle?: string
+  room?: string
   emotion: string
   sections: StorySection[]
 }
@@ -151,12 +153,14 @@ function parseMarkdown(content: string): StorySection[] {
 /**
  * Extract title from content if marked with ==title== syntax
  * Also removes the title text from the content if it appears in the body
- * Returns { title, subtitle, remainingContent }
+ * Returns { title, subtitle, room, remainingContent }
  * Stories are single-language: if Hindi, title is Hindi; if English, title is English
+ * Room is specified with == room: roomId == syntax
  */
 function extractTitleFromContent(content: string): {
   title: string
   subtitle?: string
+  room?: string
   remainingContent: string
 } {
   const lines = content.split('\n')
@@ -170,6 +174,7 @@ function extractTitleFromContent(content: string): {
     
     let extractedTitle = ''
     let extractedSubtitle: string | undefined = undefined
+    let extractedRoom: string | undefined = undefined
     let remainingLines: string[] = []
     
     // Check second line for another title marker (subtitle)
@@ -180,11 +185,27 @@ function extractTitleFromContent(content: string): {
       // Both lines are title markers - first is title, second is subtitle
       extractedTitle = titleText
       extractedSubtitle = secondTitleMatch[1].trim()
-      remainingLines = lines.slice(2)
+      
+      // Check third line for room marker == room: roomId ==
+      const thirdLine = lines[2]?.trim() || ''
+      const roomMatch = thirdLine.match(/^==\s*room:\s*(.+?)\s*==$/)
+      if (roomMatch) {
+        extractedRoom = roomMatch[1].trim().toLowerCase()
+        remainingLines = lines.slice(3)
+      } else {
+        remainingLines = lines.slice(2)
+      }
     } else {
-      // Only first line is title
-      extractedTitle = titleText
-      remainingLines = lines.slice(1)
+      // Only first line is title, check if second line is room
+      const roomMatch = secondLine.match(/^==\s*room:\s*(.+?)\s*==$/)
+      if (roomMatch) {
+        extractedTitle = titleText
+        extractedRoom = roomMatch[1].trim().toLowerCase()
+        remainingLines = lines.slice(2)
+      } else {
+        extractedTitle = titleText
+        remainingLines = lines.slice(1)
+      }
     }
     
     // Remove the title text from the remaining content if it appears
@@ -256,6 +277,7 @@ function extractTitleFromContent(content: string): {
     return {
       title: extractedTitle,
       subtitle: extractedSubtitle,
+      room: extractedRoom,
       remainingContent,
     }
   }
@@ -276,7 +298,7 @@ function parseTextFile(filePath: string): Story | null {
     const fileName = path.basename(filePath, path.extname(filePath))
     
     // Extract title from content if marked
-    const { title: extractedTitle, subtitle: extractedSubtitle, remainingContent } = 
+    const { title: extractedTitle, subtitle: extractedSubtitle, room: extractedRoom, remainingContent } = 
       extractTitleFromContent(content)
     
     // Use extracted title or fallback to filename
@@ -287,6 +309,7 @@ function parseTextFile(filePath: string): Story | null {
         .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
         .join(' ')
     const subtitle = extractedSubtitle
+    const room = extractedRoom
 
     // Parse sections from remaining content (after title is removed)
     const sections = parseMarkdown(remainingContent)
@@ -299,6 +322,7 @@ function parseTextFile(filePath: string): Story | null {
       id,
       title,
       subtitle,
+      room,
       emotion: '', // Will be assigned later based on index
       sections,
     }
@@ -368,6 +392,7 @@ export function getStoryMetadata(story: Story): StoryMetadata {
     id: story.id,
     title: story.title,
     subtitle: story.subtitle,
+    room: story.room,
     emotion: story.emotion,
     excerpt,
     excerptHindi,
