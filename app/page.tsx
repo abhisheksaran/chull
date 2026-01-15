@@ -91,6 +91,23 @@ export default function Home() {
       })
   }, [])
 
+  // Scroll restoration - scroll to last viewed room when returning from a story
+  useEffect(() => {
+    if (roomsWithStories.length > 0 && typeof window !== 'undefined') {
+      const lastRoom = sessionStorage.getItem('chull-last-room')
+      if (lastRoom) {
+        // Small delay to ensure DOM is ready
+        setTimeout(() => {
+          const roomElement = document.getElementById(`room-${lastRoom}`)
+          if (roomElement) {
+            roomElement.scrollIntoView({ behavior: 'instant' })
+          }
+          // Clear the saved room after scrolling
+          sessionStorage.removeItem('chull-last-room')
+        }, 100)
+      }
+    }
+  }, [roomsWithStories])
 
   // Intersection Observer for snap-based visibility
   useEffect(() => {
@@ -341,62 +358,36 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Gallery Rooms Section */}
-      <section className="relative min-h-screen py-32 px-6 z-10 snap-start">
-        <div className="max-w-7xl mx-auto">
+      {/* Gallery Rooms - Each room is a full-screen snap section */}
+      {roomsWithStories.map((roomData, roomIndex) => (
+        <RoomSection 
+          key={roomData.room.id} 
+          roomData={roomData} 
+          roomIndex={roomIndex}
+          allStories={stories}
+        />
+      ))}
+
+      {/* Coming soon placeholder */}
+      {stories.length === 0 && (
+        <div className="h-screen flex items-center justify-center snap-center">
           <motion.div
-            initial={{ opacity: 0, y: 50 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: '200px' }}
-            transition={{ duration: 1 }}
-            className="mb-24"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="text-center"
           >
-            <motion.h2
-              className="display-text text-fluid-3xl md:text-fluid-4xl font-bold text-center mb-6 text-white"
-              style={{
-                textShadow: `0 0 30px ${currentColors.text}30`,
-              }}
-            >
-              Exhibitions
-            </motion.h2>
-            <motion.div
-              className="h-px w-32 mx-auto"
-              style={{
-                background: `linear-gradient(to right, transparent, ${currentColors.text}, transparent)`,
-              }}
-            />
+            <p className="english-text text-fluid-lg text-gray-500 mb-4">
+              Stories will appear here
+            </p>
+            <p className="hindi-text text-fluid-base text-gray-600">
+              कहानियाँ यहाँ दिखाई देंगी
+            </p>
           </motion.div>
-
-          {/* Render each room */}
-          {roomsWithStories.map((roomData, roomIndex) => (
-            <RoomSection 
-              key={roomData.room.id} 
-              roomData={roomData} 
-              roomIndex={roomIndex}
-              allStories={stories}
-            />
-          ))}
-
-          {/* Coming soon placeholder */}
-          {stories.length === 0 && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="text-center py-32"
-            >
-              <p className="english-text text-fluid-lg text-gray-500 mb-4">
-                Stories will appear here
-              </p>
-              <p className="hindi-text text-fluid-base text-gray-600">
-                कहानियाँ यहाँ दिखाई देंगी
-              </p>
-            </motion.div>
-          )}
         </div>
-      </section>
+      )}
 
       {/* Footer */}
-      <footer className="relative py-24 px-6 text-center z-10 border-t border-white/5">
+      <footer className="relative h-screen flex flex-col items-center justify-center snap-center z-10 border-t border-white/5">
         <motion.p
           initial={{ opacity: 0 }}
           whileInView={{ opacity: 1 }}
@@ -442,7 +433,7 @@ function RoomSection({
       setCanScrollRight(scrollLeft < scrollWidth - clientWidth - 10)
       
       // Calculate active index based on scroll position
-      const cardWidth = 400 + 32 // card width + gap
+      const cardWidth = 480 + 32 // card width + gap
       const newIndex = Math.round(scrollLeft / cardWidth)
       setActiveIndex(Math.min(newIndex, stories.length - 1))
     }
@@ -459,7 +450,7 @@ function RoomSection({
 
   const scrollTo = (direction: 'left' | 'right') => {
     if (scrollContainerRef.current) {
-      const cardWidth = 400 + 32
+      const cardWidth = 480 + 32
       const scrollAmount = direction === 'left' ? -cardWidth : cardWidth
       scrollContainerRef.current.scrollBy({ left: scrollAmount, behavior: 'smooth' })
     }
@@ -467,61 +458,96 @@ function RoomSection({
 
   const scrollToIndex = (index: number) => {
     if (scrollContainerRef.current) {
-      const cardWidth = 400 + 32
+      const cardWidth = 480 + 32
       scrollContainerRef.current.scrollTo({ left: index * cardWidth, behavior: 'smooth' })
     }
   }
   
+  const [isVisible, setIsVisible] = useState(false)
+  const sectionRef = useRef<HTMLDivElement>(null)
+
+  // Intersection observer for visibility
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
+            setIsVisible(true)
+          } else {
+            setIsVisible(false)
+          }
+        })
+      },
+      { threshold: [0.5] }
+    )
+
+    if (sectionRef.current) {
+      observer.observe(sectionRef.current)
+    }
+
+    return () => {
+      if (sectionRef.current) {
+        observer.unobserve(sectionRef.current)
+      }
+    }
+  }, [])
+  
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      whileInView={{ opacity: 1 }}
-      viewport={{ once: true, margin: '-100px' }}
-      transition={{ duration: 0.8, delay: roomIndex * 0.1 }}
-      className="mb-40"
+    <div
+      ref={sectionRef}
+      id={`room-${room.id}`}
+      className="h-screen flex flex-col justify-center snap-center relative z-10"
     >
-      {/* Room Header */}
-      <motion.div 
-        className="mb-12 text-center"
-        initial={{ opacity: 0, y: 30 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-        transition={{ duration: 0.6 }}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: isVisible ? 1 : 0 }}
+        transition={{ duration: 0.6, ease: 'easeOut' }}
+        className="flex flex-col h-full justify-center py-12"
       >
-        {/* Room number indicator */}
-        <motion.span
-          className="inline-block text-xs tracking-[0.3em] text-gray-600 mb-4 uppercase"
-          style={{ fontFamily: 'var(--font-geist-mono, monospace)' }}
+        {/* Room Header */}
+        <motion.div 
+          className="mb-8 text-center flex-shrink-0"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ 
+            opacity: isVisible ? 1 : 0,
+            y: isVisible ? 0 : 20,
+          }}
+          transition={{ duration: 0.8, delay: 0.1 }}
         >
-          Room {roomIndex + 1}
-        </motion.span>
-        
-        {/* Hindi name - larger */}
-        <h3 
-          className="hindi-text text-3xl md:text-4xl lg:text-5xl font-medium mb-2"
-          style={{ color: '#E8E6E3' }}
-        >
-          {room.nameHindi}
-        </h3>
-        
-        {/* English name - smaller, muted */}
-        <p 
-          className="font-primary text-lg md:text-xl tracking-wide"
-          style={{ color: '#E8E6E3', opacity: 0.5 }}
-        >
-          {room.nameEnglish}
-        </p>
-        
-        {/* Description */}
-        {room.description && (
-          <p 
-            className="font-primary text-sm mt-4 max-w-md mx-auto italic"
-            style={{ color: '#E8E6E3', opacity: 0.35 }}
+          {/* Room number indicator */}
+          <motion.span
+            className="inline-block text-xs tracking-[0.3em] text-gray-600 mb-3 uppercase"
+            style={{ fontFamily: 'var(--font-geist-mono, monospace)' }}
           >
-            {room.description}
+            Room {roomIndex + 1}
+          </motion.span>
+          
+          {/* Hindi name - larger */}
+          <h3 
+            className="hindi-text text-3xl md:text-4xl lg:text-5xl font-medium mb-2"
+            style={{ color: '#E8E6E3' }}
+          >
+            {room.nameHindi}
+          </h3>
+          
+          {/* English name - smaller, muted */}
+          <p 
+            className="font-primary text-lg md:text-xl tracking-wide"
+            style={{ color: '#E8E6E3', opacity: 0.5 }}
+          >
+            {room.nameEnglish}
           </p>
-        )}
-      </motion.div>
+          
+          {/* Description */}
+          {room.description && (
+            <p 
+              className="font-primary text-sm mt-3 max-w-md mx-auto italic"
+              style={{ color: '#E8E6E3', opacity: 0.35 }}
+            >
+              {room.description}
+            </p>
+          )}
+        </motion.div>
 
       {/* Horizontal Scroll Gallery */}
       <div className="relative group">
@@ -604,13 +630,14 @@ function RoomSection({
                 index={globalIndex >= 0 ? globalIndex : index} 
                 localIndex={index}
                 isActive={index === activeIndex}
+                roomId={room.id}
               />
             )
           })}
         </div>
 
         {/* Pagination Dots */}
-        <div className="flex justify-center gap-2 mt-8">
+        <div className="flex justify-center gap-2 mt-6">
           {stories.map((_, index) => (
             <button
               key={index}
@@ -627,7 +654,8 @@ function RoomSection({
           ))}
         </div>
       </div>
-    </motion.div>
+      </motion.div>
+    </div>
   )
 }
 
@@ -636,14 +664,23 @@ function StoryCard({
   index,
   localIndex,
   isActive = false,
+  roomId,
 }: {
   story: StoryMetadata
   index: number
   localIndex: number
   isActive?: boolean
+  roomId: string
 }) {
   const colors = getEmotionColors(story.emotion)
   const [isHovered, setIsHovered] = useState(false)
+
+  const handleClick = () => {
+    // Save room ID to sessionStorage for scroll restoration
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('chull-last-room', roomId)
+    }
+  }
 
   return (
     <motion.div
@@ -661,13 +698,14 @@ function StoryCard({
       className="flex-shrink-0 perspective-1000"
       style={{
         scrollSnapAlign: 'center',
-        width: '400px',
-        maxWidth: '85vw',
+        width: '480px',
+        maxWidth: '90vw',
       }}
     >
       <Link
         href={`/stories/${story.id}`}
         aria-label={`Read story: ${story.title}`}
+        onClick={handleClick}
         className="block focus:outline-none focus:ring-2 focus:ring-offset-4 focus:ring-offset-dark-studio rounded-xl"
         style={{
           '--tw-ring-color': colors.text,
@@ -681,7 +719,7 @@ function StoryCard({
             opacity: isActive || isHovered ? 1 : 0.7,
           }}
           transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-          className="relative h-[500px] rounded-xl overflow-hidden border cursor-pointer group flex flex-col"
+          className="relative h-[540px] rounded-xl overflow-hidden border cursor-pointer group flex flex-col"
           style={{
             background: `linear-gradient(145deg, ${colors.base} 0%, ${colors.accent} 60%, ${colors.base} 100%)`,
             borderColor: isActive || isHovered ? `${colors.glow}60` : `${colors.glow}30`,
@@ -704,7 +742,7 @@ function StoryCard({
           <div className="relative flex-1 flex flex-col justify-center p-10 md:p-12 z-10">
             <div className="flex-1 flex flex-col justify-center">
               <motion.h2
-                className="display-text text-2xl md:text-3xl font-bold mb-4 leading-snug"
+                className="display-text text-xl md:text-2xl font-bold mb-4 leading-snug line-clamp-[8]"
                 style={{ color: colors.text }}
                 animate={{
                   textShadow: isHovered
@@ -716,7 +754,7 @@ function StoryCard({
               </motion.h2>
               {story.subtitle && (
                 <motion.p
-                  className="display-text text-sm md:text-base font-light italic leading-relaxed"
+                  className="display-text text-sm md:text-base font-light italic leading-relaxed line-clamp-2"
                   style={{ color: `${colors.text}99` }}
                 >
                   {story.subtitle}
