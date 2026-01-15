@@ -433,7 +433,7 @@ function RoomSection({
       setCanScrollRight(scrollLeft < scrollWidth - clientWidth - 10)
       
       // Calculate active index based on scroll position
-      const cardWidth = 480 + 32 // card width + gap
+      const cardWidth = 420 + 32 // card width + gap
       const newIndex = Math.round(scrollLeft / cardWidth)
       setActiveIndex(Math.min(newIndex, stories.length - 1))
     }
@@ -450,7 +450,7 @@ function RoomSection({
 
   const scrollTo = (direction: 'left' | 'right') => {
     if (scrollContainerRef.current) {
-      const cardWidth = 480 + 32
+      const cardWidth = 420 + 32
       const scrollAmount = direction === 'left' ? -cardWidth : cardWidth
       scrollContainerRef.current.scrollBy({ left: scrollAmount, behavior: 'smooth' })
     }
@@ -458,7 +458,7 @@ function RoomSection({
 
   const scrollToIndex = (index: number) => {
     if (scrollContainerRef.current) {
-      const cardWidth = 480 + 32
+      const cardWidth = 420 + 32
       scrollContainerRef.current.scrollTo({ left: index * cardWidth, behavior: 'smooth' })
     }
   }
@@ -698,8 +698,7 @@ function StoryCard({
       className="flex-shrink-0 perspective-1000"
       style={{
         scrollSnapAlign: 'center',
-        width: '480px',
-        maxWidth: '90vw',
+        width: 'min(85vw, 420px)',
       }}
     >
       <Link
@@ -719,7 +718,7 @@ function StoryCard({
             opacity: isActive || isHovered ? 1 : 0.7,
           }}
           transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-          className="relative h-[540px] rounded-xl overflow-hidden border cursor-pointer group flex flex-col"
+          className="relative h-[420px] md:h-[480px] rounded-xl overflow-hidden border cursor-pointer group flex flex-col"
           style={{
             background: `linear-gradient(145deg, ${colors.base} 0%, ${colors.accent} 60%, ${colors.base} 100%)`,
             borderColor: isActive || isHovered ? `${colors.glow}60` : `${colors.glow}30`,
@@ -739,7 +738,7 @@ function StoryCard({
           />
 
           {/* Content */}
-          <div className="relative flex-1 flex flex-col justify-center p-10 md:p-12 z-10">
+          <div className="relative flex-1 flex flex-col justify-center p-6 sm:p-8 md:p-12 z-10">
             <div className="flex-1 flex flex-col justify-center">
               <motion.h2
                 className="display-text text-xl md:text-2xl font-bold mb-4 leading-snug line-clamp-[8]"
