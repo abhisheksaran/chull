@@ -1,0 +1,184 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-dark-studio text-gray-100;
+    font-feature-settings: 'kern' 1, 'liga' 1;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    cursor: none;
+  }
+
+  /* Hide default cursor everywhere */
+  * {
+    cursor: none !important;
+  }
+
+  /* Smooth scroll behavior with snap */
+  html {
+    scroll-behavior: smooth;
+    scroll-snap-type: y mandatory;
+    height: 100%;
+    overflow-y: scroll;
+  }
+
+  body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+  }
+
+  /* Snap alignment for sections */
+  .snap-center {
+    scroll-snap-align: center;
+    scroll-snap-stop: always;
+    height: 100vh;
+  }
+
+  .snap-start {
+    scroll-snap-align: start;
+    scroll-snap-stop: always;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-dark-studio;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-dark-ink rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-gray-700;
+  }
+}
+
+@layer utilities {
+  /* Grain texture overlay */
+  .grain-overlay {
+    position: relative;
+  }
+
+  .grain-overlay::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 1;
+    animation: grain 0.3s steps(6) infinite;
+    opacity: 0.04;
+  }
+
+  /* Glow effects */
+  .glow-melancholy {
+    box-shadow: 0 0 40px rgba(233, 69, 96, 0.1),
+                0 0 80px rgba(233, 69, 96, 0.05);
+  }
+
+  .glow-nostalgia {
+    box-shadow: 0 0 40px rgba(212, 165, 116, 0.1),
+                0 0 80px rgba(212, 165, 116, 0.05);
+  }
+
+  .glow-introspection {
+    box-shadow: 0 0 40px rgba(119, 141, 169, 0.1),
+                0 0 80px rgba(119, 141, 169, 0.05);
+  }
+
+  .glow-passion {
+    box-shadow: 0 0 40px rgba(196, 30, 58, 0.1),
+                0 0 80px rgba(196, 30, 58, 0.05);
+  }
+
+  .glow-serenity {
+    box-shadow: 0 0 40px rgba(79, 195, 247, 0.1),
+                0 0 80px rgba(79, 195, 247, 0.05);
+  }
+
+  .glow-longing {
+    box-shadow: 0 0 40px rgba(184, 134, 217, 0.1),
+                0 0 80px rgba(184, 134, 217, 0.05);
+  }
+
+  /* Text glow */
+  .text-glow {
+    text-shadow: 0 0 20px currentColor,
+                 0 0 40px currentColor,
+                 0 0 60px currentColor;
+  }
+
+  /* Blur backdrop */
+  .backdrop-blur-studio {
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+  }
+
+  /* Cinematic fade */
+  .cinematic-fade {
+    mask-image: linear-gradient(
+      to bottom,
+      transparent 0%,
+      black 10%,
+      black 90%,
+      transparent 100%
+    );
+    -webkit-mask-image: linear-gradient(
+      to bottom,
+      transparent 0%,
+      black 10%,
+      black 90%,
+      transparent 100%
+    );
+  }
+}
+
+/* Hindi text styling */
+.hindi-text {
+  font-family: var(--font-hindi);
+  line-height: 1.8;
+  letter-spacing: 0.02em;
+  font-weight: 500;
+}
+
+/* English text styling */
+.english-text {
+  font-family: var(--font-english);
+  line-height: 1.7;
+  letter-spacing: 0.08em;
+  font-weight: 300;
+}
+
+/* Display text */
+.display-text {
+  font-family: var(--font-display);
+  line-height: 1.3;
+  letter-spacing: -0.02em;
+}
+
+  /* Selection styling */
+  ::selection {
+    @apply bg-emotion-melancholy-text/30 text-white;
+  }
+
+  ::-moz-selection {
+    @apply bg-emotion-melancholy-text/30 text-white;
+  }
+
+  /* Masonry layout - ensure cards don't break across columns */
+  .break-inside-avoid {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
