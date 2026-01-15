@@ -9,12 +9,6 @@
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    cursor: none;
-  }
-
-  /* Hide default cursor everywhere */
-  * {
-    cursor: none !important;
   }
 
   /* Smooth scroll behavior with snap */

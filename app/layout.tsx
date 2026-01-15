@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Inter, Noto_Serif_Devanagari, Playfair_Display, Cormorant_Garamond } from 'next/font/google'
 import './globals.css'
+import { AmbientAudioWrapper } from '@/components/AmbientAudioWrapper'
 
 const inter = Inter({
   subsets: ['latin'],
@@ -67,7 +68,9 @@ export default function RootLayout({
       <body
         className={`${inter.variable} ${hindi.variable} ${primary.variable} ${english.variable} ${display.variable} font-sans antialiased`}
       >
-        {children}
+        <AmbientAudioWrapper>
+          {children}
+        </AmbientAudioWrapper>
       </body>
     </html>
   )

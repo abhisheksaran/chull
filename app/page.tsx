@@ -4,6 +4,7 @@ import { motion, useScroll, useTransform, useSpring } from 'framer-motion'
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 import { getEmotionColors } from '@/lib/emotionColors'
+import { useAmbientAudioControls } from '@/lib/AmbientAudioContext'
 
 interface StoryMetadata {
   id: string
@@ -30,6 +31,19 @@ export default function Home() {
   // Intersection Observer for crisp appearance
   const [scene1Visible, setScene1Visible] = useState(true)
   const [scene2Visible, setScene2Visible] = useState(false)
+
+  // Ambient audio controls - fade to scene 2 volume when entering "Enter the quiet"
+  const { fadeToNormal, fadeToScene2 } = useAmbientAudioControls()
+
+  // Adjust audio based on scene visibility
+  // This also handles fading back to normal when returning from story pages
+  useEffect(() => {
+    if (scene2Visible) {
+      fadeToScene2()
+    } else {
+      fadeToNormal()
+    }
+  }, [scene2Visible, fadeToScene2, fadeToNormal])
 
   // Load stories from API
   useEffect(() => {

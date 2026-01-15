@@ -4,6 +4,7 @@ import { motion, useScroll, useTransform } from 'framer-motion'
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 import { getEmotionColors } from '@/lib/emotionColors'
+import { useAmbientAudioControls } from '@/lib/AmbientAudioContext'
 
 export interface StorySection {
   type: 'text' | 'image'
@@ -31,6 +32,21 @@ export default function StoryClient({ story }: { story: Story }) {
   const colors = getEmotionColors(story.emotion)
 
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 })
+
+  // Fade ambient audio to near silence when entering story page
+  // Creates the feeling of entering a silent inner room
+  const { fadeToSilence } = useAmbientAudioControls()
+
+  useEffect(() => {
+    // Fade to silence when story page mounts
+    fadeToSilence()
+
+    // Fade back to normal when unmounting (returning to gallery)
+    return () => {
+      // Note: This cleanup runs when navigating away, but the fade back
+      // will be handled by the main page's useEffect
+    }
+  }, [fadeToSilence])
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
