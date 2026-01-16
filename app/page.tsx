@@ -40,18 +40,15 @@ export default function Home() {
   const [scene1Visible, setScene1Visible] = useState(true)
   const [scene2Visible, setScene2Visible] = useState(false)
 
-  // Ambient audio controls - fade to scene 2 volume when entering "Enter the quiet"
-  const { fadeToNormal, fadeToScene2 } = useAmbientAudioControls()
+  // Ambient audio controls - switch audio based on visible room
+  const { switchToRoom } = useAmbientAudioControls()
 
-  // Adjust audio based on scene visibility
-  // This also handles fading back to normal when returning from story pages
+  // Reset to default audio when intro scenes are visible
   useEffect(() => {
-    if (scene2Visible) {
-      fadeToScene2()
-    } else {
-      fadeToNormal()
+    if (scene1Visible || scene2Visible) {
+      switchToRoom(null) // Use default ambient for intro
     }
-  }, [scene2Visible, fadeToScene2, fadeToNormal])
+  }, [scene1Visible, scene2Visible, switchToRoom])
 
   // Load stories from API
   useEffect(() => {
@@ -425,6 +422,9 @@ function RoomSection({
   const [canScrollLeft, setCanScrollLeft] = useState(false)
   const [canScrollRight, setCanScrollRight] = useState(true)
 
+  // Audio controls for room-specific ambient sound
+  const { switchToRoom } = useAmbientAudioControls()
+
   // Update scroll indicators
   const updateScrollState = () => {
     if (scrollContainerRef.current) {
@@ -466,13 +466,15 @@ function RoomSection({
   const [isVisible, setIsVisible] = useState(false)
   const sectionRef = useRef<HTMLDivElement>(null)
 
-  // Intersection observer for visibility
+  // Intersection observer for visibility + room audio switching
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
           if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
             setIsVisible(true)
+            // Switch to this room's ambient audio
+            switchToRoom(room.id)
           } else {
             setIsVisible(false)
           }
@@ -490,7 +492,7 @@ function RoomSection({
         observer.unobserve(sectionRef.current)
       }
     }
-  }, [])
+  }, [room.id, switchToRoom])
   
   return (
     <div

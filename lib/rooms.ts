@@ -9,6 +9,8 @@ export interface Room {
   nameEnglish: string
   description?: string
   order: number
+  /** Audio file for this room's ambient sound */
+  audioSrc?: string
 }
 
 export const ROOMS: Record<string, Room> = {
@@ -18,6 +20,7 @@ export const ROOMS: Record<string, Room> = {
     nameEnglish: 'Rain',
     description: 'The rain as muse — birth, memory, sensory awakening',
     order: 1,
+    audioSrc: '/audio/rooms/rain.mp3',
   },
   window: {
     id: 'window',
@@ -25,6 +28,7 @@ export const ROOMS: Record<string, Room> = {
     nameEnglish: 'From the Window',
     description: 'Observations from stillness — life seen through a frame',
     order: 2,
+    audioSrc: '/audio/rooms/window.mp3',
   },
   transit: {
     id: 'transit',
@@ -32,6 +36,7 @@ export const ROOMS: Record<string, Room> = {
     nameEnglish: 'In Transit',
     description: 'Movement, displacement, the wandering self',
     order: 3,
+    audioSrc: '/audio/rooms/transit.mp3',
   },
   books: {
     id: 'books',
@@ -39,6 +44,7 @@ export const ROOMS: Record<string, Room> = {
     nameEnglish: 'Books',
     description: 'The grief and joy of reading, finishing, searching',
     order: 4,
+    audioSrc: '/audio/rooms/books.mp3',
   },
   dreams: {
     id: 'dreams',
@@ -46,6 +52,7 @@ export const ROOMS: Record<string, Room> = {
     nameEnglish: 'Dreams',
     description: 'The subconscious, surreal landscapes, half-asleep states',
     order: 5,
+    audioSrc: '/audio/rooms/dreams.mp3',
   },
   creation: {
     id: 'creation',
@@ -53,6 +60,7 @@ export const ROOMS: Record<string, Room> = {
     nameEnglish: 'Creation',
     description: 'The urge to create, the search for the right place to write',
     order: 6,
+    audioSrc: '/audio/rooms/creation.mp3',
   },
   laughter: {
     id: 'laughter',
@@ -60,6 +68,7 @@ export const ROOMS: Record<string, Room> = {
     nameEnglish: 'Laughter',
     description: 'Joy, absurdity, and the silence after',
     order: 7,
+    audioSrc: '/audio/rooms/laughter.mp3',
   },
   tenderness: {
     id: 'tenderness',
@@ -67,6 +76,7 @@ export const ROOMS: Record<string, Room> = {
     nameEnglish: 'Tenderness',
     description: 'Gentle touch, letters to no one, cosmic smallness',
     order: 8,
+    audioSrc: '/audio/rooms/tenderness.mp3',
   },
   mortality: {
     id: 'mortality',
@@ -74,6 +84,7 @@ export const ROOMS: Record<string, Room> = {
     nameEnglish: 'Mortality',
     description: 'Death, endings, the world continuing',
     order: 9,
+    audioSrc: '/audio/rooms/mortality.mp3',
   },
 }
 
