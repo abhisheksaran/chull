@@ -41,7 +41,7 @@ export default function Home() {
   const [scene2Visible, setScene2Visible] = useState(false)
 
   // Ambient audio controls - switch audio based on visible room
-  const { switchToRoom } = useAmbientAudioControls()
+  const { switchToRoom, toggleAudio, isMuted } = useAmbientAudioControls()
 
   // Reset to default audio when intro scenes are visible
   useEffect(() => {
@@ -351,6 +351,68 @@ export default function Home() {
                 ease: 'easeInOut',
               }}
             />
+
+            {/* Sound invitation - clickable to enable */}
+            <motion.button
+              onClick={toggleAudio}
+              className="mt-16 mx-auto flex items-center justify-center gap-2 px-5 py-2.5 rounded-full cursor-pointer transition-all duration-300 relative"
+              style={{
+                backgroundColor: isMuted ? 'rgba(255, 255, 255, 0.03)' : 'rgba(255, 255, 255, 0.06)',
+                border: `1px solid ${isMuted ? 'rgba(255, 255, 255, 0.08)' : 'rgba(255, 255, 255, 0.15)'}`,
+              }}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: scene2Visible ? 1 : 0, y: scene2Visible ? 0 : 10 }}
+              transition={{ delay: 1.5, duration: 1 }}
+              whileHover={{ 
+                backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                borderColor: 'rgba(255, 255, 255, 0.2)',
+                scale: 1.02,
+              }}
+              whileTap={{ scale: 0.98 }}
+            >
+              {/* Sound icon */}
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                style={{ color: isMuted ? 'rgba(255, 255, 255, 0.4)' : 'rgba(255, 255, 255, 0.7)' }}
+              >
+                <path d="M11 5L6 9H2v6h4l5 4V5z" />
+                {!isMuted && (
+                  <>
+                    <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+                    <path d="M19.07 4.93a10 10 0 0 1 0 14.14" opacity="0.5" />
+                  </>
+                )}
+                {isMuted && <path d="M23 9l-6 6M17 9l6 6" opacity="0.5" />}
+              </svg>
+              <span
+                className="text-xs tracking-widest uppercase"
+                style={{
+                  color: isMuted ? 'rgba(255, 255, 255, 0.4)' : 'rgba(255, 255, 255, 0.7)',
+                  fontFamily: 'var(--font-geist-mono, monospace)',
+                  fontSize: '10px',
+                  letterSpacing: '0.15em',
+                }}
+              >
+                {isMuted ? 'Enable Sound' : 'Sound On'}
+              </span>
+
+              {/* Subtle pulse when sound is on */}
+              {!isMuted && (
+                <motion.div
+                  className="absolute inset-0 rounded-full pointer-events-none"
+                  style={{ border: '1px solid rgba(255, 255, 255, 0.1)' }}
+                  animate={{ scale: [1, 1.15, 1], opacity: [0.3, 0, 0.3] }}
+                  transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
+                />
+              )}
+            </motion.button>
           </motion.div>
         </div>
       </div>
