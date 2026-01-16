@@ -419,52 +419,115 @@ function RoomSection({
   const { room, stories } = roomData
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const [activeIndex, setActiveIndex] = useState(0)
-  const [canScrollLeft, setCanScrollLeft] = useState(false)
-  const [canScrollRight, setCanScrollRight] = useState(true)
+  const [isVisible, setIsVisible] = useState(false)
+  const [hasRestoredPosition, setHasRestoredPosition] = useState(false)
+  const sectionRef = useRef<HTMLDivElement>(null)
 
   // Audio controls for room-specific ambient sound
   const { switchToRoom } = useAmbientAudioControls()
 
-  // Update scroll indicators
-  const updateScrollState = () => {
-    if (scrollContainerRef.current) {
-      const { scrollLeft, scrollWidth, clientWidth } = scrollContainerRef.current
-      setCanScrollLeft(scrollLeft > 10)
-      setCanScrollRight(scrollLeft < scrollWidth - clientWidth - 10)
+  // Restore last viewed story position when returning to this room
+  useEffect(() => {
+    if (typeof window !== 'undefined' && !hasRestoredPosition) {
+      const lastRoom = sessionStorage.getItem('chull-last-room')
+      const savedIndex = sessionStorage.getItem(`chull-last-story-${room.id}`)
       
-      // Calculate active index based on scroll position
-      const cardWidth = 420 + 32 // card width + gap
-      const newIndex = Math.round(scrollLeft / cardWidth)
-      setActiveIndex(Math.min(newIndex, stories.length - 1))
+      if (lastRoom === room.id && savedIndex !== null) {
+        const indexToRestore = parseInt(savedIndex, 10)
+        if (!isNaN(indexToRestore) && indexToRestore >= 0 && indexToRestore < stories.length) {
+          setActiveIndex(indexToRestore)
+          setHasRestoredPosition(true)
+          
+          // Scroll to the saved position after a brief delay for DOM to be ready
+          setTimeout(() => {
+            if (scrollContainerRef.current) {
+              const container = scrollContainerRef.current
+              const cardElement = container.children[indexToRestore + 1] as HTMLElement
+              if (cardElement) {
+                const containerWidth = container.clientWidth
+                const cardWidth = cardElement.offsetWidth
+                const scrollPosition = cardElement.offsetLeft - (containerWidth - cardWidth) / 2
+                container.scrollTo({ left: scrollPosition, behavior: 'instant' })
+              }
+            }
+          }, 100)
+        }
+      }
+    }
+  }, [room.id, stories.length, hasRestoredPosition])
+
+  // Navigate to specific index
+  const navigateToIndex = (index: number) => {
+    if (index >= 0 && index < stories.length) {
+      setActiveIndex(index)
+      if (scrollContainerRef.current) {
+        const container = scrollContainerRef.current
+        // +1 to account for the left spacer element
+        const cardElement = container.children[index + 1] as HTMLElement
+        if (cardElement) {
+          const containerWidth = container.clientWidth
+          const cardWidth = cardElement.offsetWidth
+          const scrollPosition = cardElement.offsetLeft - (containerWidth - cardWidth) / 2
+          container.scrollTo({ left: scrollPosition, behavior: 'smooth' })
+        }
+      }
     }
   }
 
+  // Handle scroll to detect active card
+  const handleScroll = () => {
+    if (scrollContainerRef.current) {
+      const container = scrollContainerRef.current
+      const containerCenter = container.scrollLeft + container.clientWidth / 2
+      
+      let closestIndex = 0
+      let closestDistance = Infinity
+      
+      // Skip first child (left spacer) and last child (right spacer)
+      const children = Array.from(container.children)
+      children.slice(1, -1).forEach((child, index) => {
+        const cardElement = child as HTMLElement
+        const cardCenter = cardElement.offsetLeft + cardElement.offsetWidth / 2
+        const distance = Math.abs(containerCenter - cardCenter)
+        
+        if (distance < closestDistance) {
+          closestDistance = distance
+          closestIndex = index
+        }
+      })
+      
+      if (closestIndex !== activeIndex) {
+        setActiveIndex(closestIndex)
+      }
+    }
+  }
+
+  // Keyboard navigation when room is visible
+  useEffect(() => {
+    if (!isVisible) return
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+        e.preventDefault()
+        navigateToIndex(Math.min(activeIndex + 1, stories.length - 1))
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+        e.preventDefault()
+        navigateToIndex(Math.max(activeIndex - 1, 0))
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isVisible, activeIndex, stories.length])
+
+  // Scroll event listener
   useEffect(() => {
     const container = scrollContainerRef.current
     if (container) {
-      container.addEventListener('scroll', updateScrollState)
-      updateScrollState()
-      return () => container.removeEventListener('scroll', updateScrollState)
+      container.addEventListener('scroll', handleScroll)
+      return () => container.removeEventListener('scroll', handleScroll)
     }
-  }, [stories.length])
-
-  const scrollTo = (direction: 'left' | 'right') => {
-    if (scrollContainerRef.current) {
-      const cardWidth = 420 + 32
-      const scrollAmount = direction === 'left' ? -cardWidth : cardWidth
-      scrollContainerRef.current.scrollBy({ left: scrollAmount, behavior: 'smooth' })
-    }
-  }
-
-  const scrollToIndex = (index: number) => {
-    if (scrollContainerRef.current) {
-      const cardWidth = 420 + 32
-      scrollContainerRef.current.scrollTo({ left: index * cardWidth, behavior: 'smooth' })
-    }
-  }
-  
-  const [isVisible, setIsVisible] = useState(false)
-  const sectionRef = useRef<HTMLDivElement>(null)
+  }, [activeIndex])
 
   // Intersection observer for visibility + room audio switching
   useEffect(() => {
@@ -473,7 +536,6 @@ function RoomSection({
         entries.forEach((entry) => {
           if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
             setIsVisible(true)
-            // Switch to this room's ambient audio
             switchToRoom(room.id)
           } else {
             setIsVisible(false)
@@ -494,6 +556,9 @@ function RoomSection({
     }
   }, [room.id, switchToRoom])
   
+  const canScrollLeft = activeIndex > 0
+  const canScrollRight = activeIndex < stories.length - 1
+
   return (
     <div
       ref={sectionRef}
@@ -504,11 +569,11 @@ function RoomSection({
         initial={{ opacity: 0 }}
         animate={{ opacity: isVisible ? 1 : 0 }}
         transition={{ duration: 0.6, ease: 'easeOut' }}
-        className="flex flex-col h-full justify-center py-12"
+        className="flex flex-col h-full justify-center"
       >
-        {/* Room Header */}
+        {/* Room Header - Compact */}
         <motion.div 
-          className="mb-8 text-center flex-shrink-0"
+          className="mb-4 md:mb-6 text-center flex-shrink-0"
           initial={{ opacity: 0, y: 20 }}
           animate={{ 
             opacity: isVisible ? 1 : 0,
@@ -518,15 +583,15 @@ function RoomSection({
         >
           {/* Room number indicator */}
           <motion.span
-            className="inline-block text-xs tracking-[0.3em] text-gray-600 mb-3 uppercase"
+            className="inline-block text-xs tracking-[0.3em] text-gray-600 mb-2 uppercase"
             style={{ fontFamily: 'var(--font-geist-mono, monospace)' }}
           >
             Room {roomIndex + 1}
           </motion.span>
           
-          {/* Hindi name - larger */}
+          {/* Hindi name */}
           <h3 
-            className="hindi-text text-3xl md:text-4xl lg:text-5xl font-medium mb-2"
+            className="hindi-text text-2xl md:text-3xl lg:text-4xl font-medium mb-1"
             style={{ color: '#E8E6E3' }}
           >
             {room.nameHindi}
@@ -534,7 +599,7 @@ function RoomSection({
           
           {/* English name - smaller, muted */}
           <p 
-            className="font-primary text-lg md:text-xl tracking-wide"
+            className="font-primary text-base md:text-lg tracking-wide"
             style={{ color: '#E8E6E3', opacity: 0.5 }}
           >
             {room.nameEnglish}
@@ -543,7 +608,7 @@ function RoomSection({
           {/* Description */}
           {room.description && (
             <p 
-              className="font-primary text-sm mt-3 max-w-md mx-auto italic"
+              className="font-primary text-xs mt-2 max-w-md mx-auto italic"
               style={{ color: '#E8E6E3', opacity: 0.35 }}
             >
               {room.description}
@@ -551,275 +616,359 @@ function RoomSection({
           )}
         </motion.div>
 
-      {/* Horizontal Scroll Gallery */}
-      <div className="relative group">
-        {/* Left Arrow */}
-        <motion.button
-          onClick={() => scrollTo('left')}
-          className="absolute left-4 top-1/2 -translate-y-1/2 z-20 w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300"
-          style={{
-            background: 'rgba(20, 20, 25, 0.8)',
-            backdropFilter: 'blur(8px)',
-            border: '1px solid rgba(255,255,255,0.1)',
-          }}
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ 
-            opacity: canScrollLeft ? 1 : 0,
-            x: canScrollLeft ? 0 : -20,
-            pointerEvents: canScrollLeft ? 'auto' : 'none',
-          }}
-          whileHover={{ scale: 1.1, background: 'rgba(40, 40, 50, 0.9)' }}
-          whileTap={{ scale: 0.95 }}
-        >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="2">
-            <path d="M15 18l-6-6 6-6" />
-          </svg>
-        </motion.button>
+        {/* Single Focus Canvas Gallery - Optical center (slightly above mathematical center) */}
+        <div className="relative flex-1 flex items-center" style={{ paddingBottom: '5vh' }}>
+          {/* Left Arrow - Subtle */}
+          <motion.button
+            onClick={() => navigateToIndex(activeIndex - 1)}
+            className="absolute left-2 md:left-8 top-1/2 -translate-y-1/2 z-30 w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center"
+            style={{
+              background: 'rgba(20, 20, 25, 0.6)',
+              backdropFilter: 'blur(8px)',
+              border: '1px solid rgba(255,255,255,0.08)',
+            }}
+            initial={{ opacity: 0 }}
+            animate={{ 
+              opacity: canScrollLeft ? 0.6 : 0,
+              pointerEvents: canScrollLeft ? 'auto' : 'none',
+            }}
+            whileHover={{ opacity: 1, scale: 1.1, background: 'rgba(40, 40, 50, 0.8)' }}
+            whileTap={{ scale: 0.95 }}
+            aria-label="Previous artwork"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="1.5">
+              <path d="M15 18l-6-6 6-6" />
+            </svg>
+          </motion.button>
 
-        {/* Right Arrow */}
-        <motion.button
-          onClick={() => scrollTo('right')}
-          className="absolute right-4 top-1/2 -translate-y-1/2 z-20 w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300"
-          style={{
-            background: 'rgba(20, 20, 25, 0.8)',
-            backdropFilter: 'blur(8px)',
-            border: '1px solid rgba(255,255,255,0.1)',
-          }}
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ 
-            opacity: canScrollRight ? 1 : 0,
-            x: canScrollRight ? 0 : 20,
-            pointerEvents: canScrollRight ? 'auto' : 'none',
-          }}
-          whileHover={{ scale: 1.1, background: 'rgba(40, 40, 50, 0.9)' }}
-          whileTap={{ scale: 0.95 }}
-        >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="2">
-            <path d="M9 18l6-6-6-6" />
-          </svg>
-        </motion.button>
+          {/* Right Arrow - Subtle */}
+          <motion.button
+            onClick={() => navigateToIndex(activeIndex + 1)}
+            className="absolute right-2 md:right-8 top-1/2 -translate-y-1/2 z-30 w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center"
+            style={{
+              background: 'rgba(20, 20, 25, 0.6)',
+              backdropFilter: 'blur(8px)',
+              border: '1px solid rgba(255,255,255,0.08)',
+            }}
+            initial={{ opacity: 0 }}
+            animate={{ 
+              opacity: canScrollRight ? 0.6 : 0,
+              pointerEvents: canScrollRight ? 'auto' : 'none',
+            }}
+            whileHover={{ opacity: 1, scale: 1.1, background: 'rgba(40, 40, 50, 0.8)' }}
+            whileTap={{ scale: 0.95 }}
+            aria-label="Next artwork"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="1.5">
+              <path d="M9 18l6-6-6-6" />
+            </svg>
+          </motion.button>
 
-        {/* Fade edges */}
-        <div 
-          className="absolute left-0 top-0 bottom-0 w-24 z-10 pointer-events-none"
-          style={{
-            background: 'linear-gradient(to right, rgba(14, 15, 19, 1), transparent)',
-          }}
-        />
-        <div 
-          className="absolute right-0 top-0 bottom-0 w-24 z-10 pointer-events-none"
-          style={{
-            background: 'linear-gradient(to left, rgba(14, 15, 19, 1), transparent)',
-          }}
-        />
+          {/* Deep fade edges for immersion - wider for larger cards */}
+          <div 
+            className="absolute left-0 top-0 bottom-0 w-20 md:w-40 lg:w-48 z-20 pointer-events-none"
+            style={{
+              background: 'linear-gradient(to right, rgba(14, 15, 19, 1) 0%, rgba(14, 15, 19, 0.85) 35%, transparent 100%)',
+            }}
+          />
+          <div 
+            className="absolute right-0 top-0 bottom-0 w-20 md:w-40 lg:w-48 z-20 pointer-events-none"
+            style={{
+              background: 'linear-gradient(to left, rgba(14, 15, 19, 1) 0%, rgba(14, 15, 19, 0.85) 35%, transparent 100%)',
+            }}
+          />
 
-        {/* Scrollable Container */}
-        <div
-          ref={scrollContainerRef}
-          className="flex gap-8 overflow-x-auto scrollbar-hide px-12 md:px-24 py-4"
-          style={{
-            scrollSnapType: 'x mandatory',
-            scrollPaddingLeft: '3rem',
-            scrollPaddingRight: '3rem',
-          }}
-        >
-          {stories.map((story, index) => {
-            const globalIndex = allStories.findIndex(s => s.id === story.id)
-            return (
-              <StoryCard 
-                key={story.id} 
-                story={story} 
-                index={globalIndex >= 0 ? globalIndex : index} 
-                localIndex={index}
-                isActive={index === activeIndex}
-                roomId={room.id}
-              />
-            )
-          })}
-        </div>
-
-        {/* Pagination Dots */}
-        <div className="flex justify-center gap-2 mt-6">
-          {stories.map((_, index) => (
-            <button
-              key={index}
-              onClick={() => scrollToIndex(index)}
-              className="w-2 h-2 rounded-full transition-all duration-300 focus:outline-none"
-              style={{
-                background: index === activeIndex 
-                  ? 'rgba(255, 255, 255, 0.8)' 
-                  : 'rgba(255, 255, 255, 0.2)',
-                transform: index === activeIndex ? 'scale(1.3)' : 'scale(1)',
+          {/* Single Focus Scrollable Container */}
+          <div
+            ref={scrollContainerRef}
+            className="flex items-center gap-8 md:gap-16 lg:gap-20 overflow-x-auto scrollbar-hide w-full"
+            style={{
+              scrollSnapType: 'x mandatory',
+              WebkitOverflowScrolling: 'touch',
+            }}
+          >
+            {/* Left spacer - allows first card to center (no snap) */}
+            <div 
+              className="flex-shrink-0" 
+              style={{ 
+                width: 'calc(50vw - min(42.5vw, 390px))',
+                scrollSnapAlign: 'none',
               }}
-              aria-label={`Go to story ${index + 1}`}
+              aria-hidden="true"
             />
-          ))}
+            
+            {stories.map((story, index) => {
+              const globalIndex = allStories.findIndex(s => s.id === story.id)
+              const distanceFromActive = Math.abs(index - activeIndex)
+              
+              return (
+                <FocusedStoryCard 
+                  key={story.id} 
+                  story={story} 
+                  index={globalIndex >= 0 ? globalIndex : index} 
+                  localIndex={index}
+                  isActive={index === activeIndex}
+                  distanceFromActive={distanceFromActive}
+                  roomId={room.id}
+                  onClick={() => navigateToIndex(index)}
+                />
+              )
+            })}
+            
+            {/* Right spacer - allows last card to center (no snap) */}
+            <div 
+              className="flex-shrink-0" 
+              style={{ 
+                width: 'calc(50vw - min(42.5vw, 390px))',
+                scrollSnapAlign: 'none',
+              }}
+              aria-hidden="true"
+            />
+          </div>
         </div>
-      </div>
+
+        {/* Progress Indicator - Minimal */}
+        <div className="flex items-center justify-center gap-3 mt-4 md:mt-6 flex-shrink-0">
+          {/* Counter */}
+          <span 
+            className="text-xs tracking-widest"
+            style={{ 
+              fontFamily: 'var(--font-geist-mono, monospace)',
+              color: 'rgba(255,255,255,0.4)'
+            }}
+          >
+            {activeIndex + 1} / {stories.length}
+          </span>
+          
+          {/* Dots */}
+          <div className="flex gap-1.5">
+            {stories.map((_, index) => (
+              <button
+                key={index}
+                onClick={() => navigateToIndex(index)}
+                className="transition-all duration-500 focus:outline-none"
+                style={{
+                  width: index === activeIndex ? '24px' : '6px',
+                  height: '6px',
+                  borderRadius: '3px',
+                  background: index === activeIndex 
+                    ? 'rgba(255, 255, 255, 0.8)' 
+                    : 'rgba(255, 255, 255, 0.15)',
+                }}
+                aria-label={`Go to artwork ${index + 1}`}
+              />
+            ))}
+          </div>
+        </div>
       </motion.div>
     </div>
   )
 }
 
-function StoryCard({
+// New focused single-artwork card component
+function FocusedStoryCard({
   story,
   index,
   localIndex,
-  isActive = false,
+  isActive,
+  distanceFromActive,
   roomId,
+  onClick,
 }: {
   story: StoryMetadata
   index: number
   localIndex: number
-  isActive?: boolean
+  isActive: boolean
+  distanceFromActive: number
   roomId: string
+  onClick: () => void
 }) {
   const colors = getEmotionColors(story.emotion)
   const [isHovered, setIsHovered] = useState(false)
 
   const handleClick = () => {
-    // Save room ID to sessionStorage for scroll restoration
     if (typeof window !== 'undefined') {
       sessionStorage.setItem('chull-last-room', roomId)
+      sessionStorage.setItem(`chull-last-story-${roomId}`, String(localIndex))
     }
   }
 
+  // Calculate visual properties based on distance from active
+  // Cinematic depth-of-field: exponential blur for more natural falloff
+  const scale = isActive ? 1 : Math.max(0.6, 1 - distanceFromActive * 0.12)
+  const opacity = isActive ? 1 : Math.max(0.15, 1 - distanceFromActive * 0.35)
+  // Exponential blur curve for cinematic depth-of-field effect
+  const blur = isActive ? 0 : Math.min(Math.pow(distanceFromActive, 1.4) * 2.5, 8)
+
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0.9 }}
-      whileInView={{ opacity: 1, scale: 1 }}
-      viewport={{ once: true, margin: '-50px' }}
+      initial={{ opacity: 0, scale: 0.8 }}
+      animate={{ 
+        opacity: opacity,
+        scale: isHovered && isActive ? 1.02 : scale,
+        filter: `blur(${blur}px)`,
+      }}
       transition={{
-        duration: 0.6,
-        delay: localIndex * 0.1,
-        type: 'spring',
-        stiffness: 100,
+        duration: 0.5,
+        ease: [0.4, 0, 0.2, 1],
       }}
       onHoverStart={() => setIsHovered(true)}
       onHoverEnd={() => setIsHovered(false)}
-      className="flex-shrink-0 perspective-1000"
+      onClick={!isActive ? onClick : undefined}
+      className="flex-shrink-0"
       style={{
         scrollSnapAlign: 'center',
-        width: 'min(85vw, 420px)',
+        scrollSnapStop: 'always',
+        width: 'min(85vw, 780px)',
+        cursor: isActive ? 'default' : 'pointer',
       }}
     >
       <Link
-        href={`/stories/${story.id}`}
+        href={isActive ? `/stories/${story.id}` : '#'}
         aria-label={`Read story: ${story.title}`}
-        onClick={handleClick}
-        className="block focus:outline-none focus:ring-2 focus:ring-offset-4 focus:ring-offset-dark-studio rounded-xl"
+        onClick={(e) => {
+          if (!isActive) {
+            e.preventDefault()
+            onClick()
+          } else {
+            handleClick()
+          }
+        }}
+        className="block focus:outline-none focus:ring-2 focus:ring-offset-4 focus:ring-offset-dark-studio rounded-2xl"
         style={{
           '--tw-ring-color': colors.text,
+          pointerEvents: isActive ? 'auto' : 'none',
         } as React.CSSProperties & { '--tw-ring-color': string }}
       >
         <motion.div
           animate={{
-            rotateY: isHovered ? 3 : 0,
-            rotateX: isHovered ? -3 : 0,
-            scale: isHovered ? 1.02 : isActive ? 1 : 0.98,
-            opacity: isActive || isHovered ? 1 : 0.7,
+            rotateY: isHovered && isActive ? 2 : 0,
+            rotateX: isHovered && isActive ? -2 : 0,
           }}
-          transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-          className="relative h-[420px] md:h-[480px] rounded-xl overflow-hidden border cursor-pointer group flex flex-col"
+          transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+          className="relative rounded-2xl overflow-hidden border cursor-pointer group"
           style={{
-            background: `linear-gradient(145deg, ${colors.base} 0%, ${colors.accent} 60%, ${colors.base} 100%)`,
-            borderColor: isActive || isHovered ? `${colors.glow}60` : `${colors.glow}30`,
-            boxShadow: isHovered
-              ? `0 25px 80px ${colors.glow}40, 0 0 60px ${colors.glow}25`
-              : isActive 
-                ? `0 15px 50px ${colors.glow}25, 0 0 30px ${colors.glow}15`
-                : `0 8px 30px ${colors.glow}10`,
+            height: 'min(68vh, 650px)',
+            background: `linear-gradient(155deg, ${colors.base} 0%, ${colors.accent} 50%, ${colors.base} 100%)`,
+            borderColor: isActive 
+              ? `${colors.glow}45` 
+              : `${colors.glow}10`,
+            boxShadow: isActive
+              ? `0 40px 120px ${colors.glow}40, 0 0 100px ${colors.glow}25, inset 0 0 80px ${colors.glow}06`
+              : `0 15px 50px ${colors.glow}08`,
           }}
         >
-          {/* Animated gradient overlay */}
+          {/* Ambient glow overlay for active card - enhanced presence */}
+          {isActive && (
+            <motion.div
+              className="absolute inset-0 pointer-events-none"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 1 }}
+              style={{
+                background: `radial-gradient(ellipse 80% 60% at center 40%, ${colors.glow}10 0%, transparent 70%)`,
+              }}
+            />
+          )}
+
+          {/* Hover gradient overlay */}
           <motion.div
             className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700"
             style={{
-              background: `linear-gradient(145deg, ${colors.glow}25 0%, transparent 40%, ${colors.glow}15 100%)`,
+              background: `linear-gradient(155deg, ${colors.glow}20 0%, transparent 40%, ${colors.glow}10 100%)`,
             }}
           />
 
-          {/* Content */}
-          <div className="relative flex-1 flex flex-col justify-center p-6 sm:p-8 md:p-12 z-10">
+          {/* Content - with typographic breathing room */}
+          <div className="relative flex flex-col justify-center h-full p-10 md:p-14 lg:p-16 z-10">
             <div className="flex-1 flex flex-col justify-center">
+              {/* Title - content-aware typography */}
               <motion.h2
-                className="display-text text-xl md:text-2xl font-bold mb-4 leading-snug line-clamp-[8]"
-                style={{ color: colors.text }}
-                animate={{
-                  textShadow: isHovered
-                    ? `0 0 40px ${colors.text}70, 0 0 80px ${colors.text}40`
-                    : `0 0 20px ${colors.text}40`,
+                className={`card-title font-medium mb-6 md:mb-8 ${
+                  story.title.length < 80 
+                    ? 'card-title--short' 
+                    : story.title.length < 200 
+                      ? 'card-title--medium' 
+                      : 'card-title--long'
+                }`}
+                style={{ 
+                  color: colors.text,
+                  textShadow: isActive ? `0 0 50px ${colors.text}35` : 'none',
                 }}
               >
                 {story.title}
               </motion.h2>
+              
+              {/* Subtitle - with proper spacing */}
               {story.subtitle && (
                 <motion.p
-                  className="display-text text-sm md:text-base font-light italic leading-relaxed line-clamp-2"
-                  style={{ color: `${colors.text}99` }}
+                  className="display-text text-sm md:text-base lg:text-lg font-light italic leading-relaxed max-w-[32ch]"
+                  style={{ 
+                    color: `${colors.text}75`,
+                    lineHeight: 1.7,
+                  }}
                 >
                   {story.subtitle}
                 </motion.p>
               )}
             </div>
 
-            {/* Read indicator */}
-            <motion.div 
-              className="mt-8 flex items-center gap-2"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: isHovered ? 1 : 0.5 }}
-              transition={{ duration: 0.3 }}
-            >
-              <span 
-                className="text-xs tracking-[0.2em] uppercase"
-                style={{ color: `${colors.text}80` }}
+            {/* Read indicator - only on active, positioned at bottom */}
+            {isActive && (
+              <motion.div 
+                className="mt-auto pt-8 flex items-center gap-3"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: isHovered ? 1 : 0.4 }}
+                transition={{ duration: 0.4 }}
               >
-                Read
-              </span>
-              <motion.div
-                animate={{ x: isHovered ? 5 : 0 }}
-                transition={{ duration: 0.3 }}
-              >
-                <svg 
-                  width="16" 
-                  height="16" 
-                  viewBox="0 0 24 24" 
-                  fill="none" 
-                  stroke={`${colors.text}80`}
-                  strokeWidth="2"
+                <span 
+                  className="text-xs tracking-[0.35em] uppercase"
+                  style={{ color: `${colors.text}70` }}
                 >
-                  <path d="M5 12h14M12 5l7 7-7 7" />
-                </svg>
+                  Enter
+                </span>
+                <motion.div
+                  animate={{ x: isHovered ? 8 : 0 }}
+                  transition={{ duration: 0.4, ease: 'easeOut' }}
+                >
+                  <svg 
+                    width="16" 
+                    height="16" 
+                    viewBox="0 0 24 24" 
+                    fill="none" 
+                    stroke={`${colors.text}70`}
+                    strokeWidth="1.5"
+                  >
+                    <path d="M5 12h14M12 5l7 7-7 7" />
+                  </svg>
+                </motion.div>
               </motion.div>
-            </motion.div>
+            )}
           </div>
 
-          {/* Decorative corner glow */}
+          {/* Corner glow - larger for enhanced presence */}
           <motion.div
-            className="absolute top-0 right-0 w-40 h-40"
+            className="absolute top-0 right-0 w-56 h-56 md:w-80 md:h-80"
             style={{
-              background: `radial-gradient(circle at top right, ${colors.glow}30, transparent 70%)`,
+              background: `radial-gradient(circle at top right, ${colors.glow}20, transparent 70%)`,
             }}
             animate={{
-              scale: isHovered ? [1, 1.3, 1] : 1,
-              opacity: isHovered ? [0.6, 1, 0.6] : 0.4,
+              scale: isHovered && isActive ? [1, 1.15, 1] : 1,
+              opacity: isActive ? 0.5 : 0.15,
             }}
-            transition={{ duration: 2.5, repeat: Infinity }}
+            transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
           />
 
-          {/* Bottom accent line */}
+          {/* Bottom accent */}
           <motion.div
-            className="absolute bottom-0 left-0 right-0 h-1"
+            className="absolute bottom-0 left-0 right-0 h-px"
             style={{
-              background: `linear-gradient(to right, transparent, ${colors.text}50, transparent)`,
+              background: `linear-gradient(to right, transparent, ${colors.text}40, transparent)`,
             }}
-            initial={{ scaleX: 0 }}
-            whileInView={{ scaleX: 1 }}
-            viewport={{ once: true }}
-            transition={{ duration: 1.2, delay: 0.3 }}
           />
         </motion.div>
       </Link>
     </motion.div>
   )
 }
+
